@@ -3,6 +3,7 @@
 (ql:quickload :numcl)
 (ql:quickload :alexandria)
 (ql:quickload :cl-opengl) ;; for plotting, equivalent to matplotlib
+(ql:quickload :cl-glut)
 (defpackage :fish
   (:use :cl)
   (:local-nicknames (:nc :numcl))
@@ -185,15 +186,41 @@
   (swap-buffers)
   (sleep 1/60)) ; 60 FPS
 
+(defstruct octree-node xyz xy-z x-yz x-y-z -x-y-z -x-yz -xy-z -xyz)
+(defun generate-barnes-hut-octree (all-fish)
+  (labels (())
+    (recurse-octree-gen )))
+
+(defun barnes-hut-simplify (other-fish-tree fish)
+  "Applies the Barnes-Hut Approximation to cluster farther fish"
+  ())
+
 (defun calculate-next-state (state time-step use-barnes-hut?)
   "Computes the next state based on the previous state and the time-step"
   (declare (type vector state)
 	   (type number time-step))
-  (loop :for fish :across state :do
-    (let ((other-fish (remove-fish fish state)))
-      (if use-barnes-hut?
-	  (setf other-fish (barnes-hut-simplify other-fish fish)))
-      ())))
+  (let ((barnes-hut-tree
+	  (if use-barnes-hut?
+	      (generate-barnes-hut-octree (coerce state 'list)))))
+    (coerce
+     (loop :for i :below (length state)
+	   :for fish := (aref state i)
+	   :for other-fish := (concatenate 'vector
+					   (subseq state 0 i)
+					   (subseq state (1+ i)))
+	   :collect
+	   (progn
+	     (if use-barnes-hut?
+		 (setf other-fish
+		       (barnes-hut-simplify other-fish fish)))
+	     (let* ((trans-vel (translational-vel fish other-fishes))
+		    (rot-vel (rotational-vel fish other-fishes))
+		    (pos-delta (nc:* trans-vel time-step))
+		    (orientation-delta (nc:* rot-vel time-step)))
+	       (make-fish
+		(nc:+ (fish-position fish) pos-delta)
+		(nc:+ (fish-orientation fish) orientation-delta)))))
+     'vector)))
 
 (defun simulate (stop-time time-step use-barnes-hut?)
   "The main simulation function"
