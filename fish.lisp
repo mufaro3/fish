@@ -88,8 +88,8 @@
 
 (defun compute-velocity (fish other-fishes contribution-fn)
   "Computes the total contribution"
-  (declare (type fish     fish)
-	   (type vector   other-fishes)
+  (declare (type fish fish)
+	   (type (vector fish) other-fishes)
 	   (type function contribution-fn))
   (let* ((compute-contribution
 	   (alexandria:curry contribution-fn fish))
@@ -103,19 +103,19 @@
 (defun source-vel (fish other-fishes)
   "Computes the source velocity for a given fish"
   (declare (type fish fish)
-	   (type vector other-fishes))
+	   (type (vector fish) other-fishes))
   (compute-velocity fish other-fishes #'source-decrease-vector))
 
 (defun sink-vel (fish other-fishes)
   "Computes the sink velocity for a given fish"
   (declare (type fish fish)
-	   (type vector other-fishes))
+	   (type (vector fish) other-fishes))
   (compute-velocity fish other-fishes #'sink-decrease-vector))
 
 (defun translational-vel (fish other-fishes)
   "Computes the translational velocity for a given fish"
   (declare (type fish fish)
-	   (type vector other-fishes))
+	   (type (vector fish) other-fishes))
   (nc:/ (nc:+ (source-vel fish other-fishes)
 	      (sink-vel fish other-fishes))
 	2))
@@ -123,7 +123,7 @@
 (defun rotational-vel (fish other-fishes)
   "Computes the rotational velocity for a given fish"
   (declare (type fish fish)
-	   (type vector other-fishes))
+	   (type (vector fish) other-fishes))
   (let* ((relative-vel
 	   (nc:- (source-vel fish other-fishes)
 		 (sink-vel fish other-fishes)))
@@ -153,6 +153,7 @@
 (defparameter *orientation-vector-length* 2)
 (defun spherical->cartesian (theta phi)
   "Converts the spherical orientation to a cartesian unit vector"
+  (declare (type number theta phi))
   (nc:asarray (vector
 	       (* (sin phi) (cos theta))
 	       (* (sin phi) (sin theta))
@@ -166,7 +167,7 @@
 
 (defun display-state (state)
   "Displays the state in a three-dimensional plot"
-  (declare (type vector state))
+  (declare (type (vector fish) state))
   (gl:clear :color-buffer-git :depth-buffer-bit)
 
   (loop :for fish :across state :do
@@ -186,41 +187,61 @@
   (swap-buffers)
   (sleep 1/60)) ; 60 FPS
 
-(defstruct octree-node xyz xy-z x-yz x-y-z -x-y-z -x-yz -xy-z -xyz)
-(defun generate-barnes-hut-octree (all-fish)
-  (labels (())
-    (recurse-octree-gen )))
+;; State Update Functions
 
-(defun barnes-hut-simplify (other-fish-tree fish)
-  "Applies the Barnes-Hut Approximation to cluster farther fish"
-  ())
+(defun generate-barnes-hut-octree (state)
+  "Generates the Barnes-Hut octree according to
+   'The Barnes Hut Algorithm' by Tom Ventimiglia and Kevin Wayne"
+  (declare (optimize (safety 3) (speed 0) (debug 1)))
+  (declare (type (list fish) state))
+
+  ;; Recursive generator function
+  (labels ((recurse-octree-gen (tree ) ))
+    
+    (recurse-octree-gen  (first state) (rest state))))
+
+(defun calculate-next-state-barnes-hut (state time-step)
+  "Calculates the next state using Barnes-Hut approximation"
+  (declare (type vector state) (type number time-step))
+  (let ((octree (generate-barnes-hut-octree (coerce 'list state)))))
+    ()))
+
+(defun calculate-next-state-iterative (state time-step)
+  "Calculates the next state using standard iteration"
+  (declare (type vector state) (type number time-step))
+
+  ;; Loops through all of the autofish
+  (loop :for i :below (length state)
+	:for fish := (aref state i)
+	:for other-fish := (concatenate 'vector
+					(subseq state 0 i)
+					(subseq state (1+ i)))
+	:collect
+	
+	;; Compute the Translational Velocity
+	(let* ((trans-vel (translational-vel fish other-fishes))
+	       
+	       ;; Compute the rotational velocity
+	       (rot-vel (rotational-vel fish other-fishes))
+
+	       ;; Compute the change in translational position
+	       (pos-delta (nc:* trans-vel time-step))
+
+	       ;; Compute the change in orientation
+	       (orientation-delta (nc:* rot-vel time-step)))
+
+	  ;; Add the changes to the fish and update 
+	  (make-fish
+	   (nc:+ (fish-position fish) pos-delta)
+	   (nc:+ (fish-orientation fish) orientation-delta)))))
 
 (defun calculate-next-state (state time-step use-barnes-hut?)
   "Computes the next state based on the previous state and the time-step"
   (declare (type vector state)
 	   (type number time-step))
-  (let ((barnes-hut-tree
-	  (if use-barnes-hut?
-	      (generate-barnes-hut-octree (coerce state 'list)))))
-    (coerce
-     (loop :for i :below (length state)
-	   :for fish := (aref state i)
-	   :for other-fish := (concatenate 'vector
-					   (subseq state 0 i)
-					   (subseq state (1+ i)))
-	   :collect
-	   (progn
-	     (if use-barnes-hut?
-		 (setf other-fish
-		       (barnes-hut-simplify other-fish fish)))
-	     (let* ((trans-vel (translational-vel fish other-fishes))
-		    (rot-vel (rotational-vel fish other-fishes))
-		    (pos-delta (nc:* trans-vel time-step))
-		    (orientation-delta (nc:* rot-vel time-step)))
-	       (make-fish
-		(nc:+ (fish-position fish) pos-delta)
-		(nc:+ (fish-orientation fish) orientation-delta)))))
-     'vector)))
+  (if use-barnes-hut?
+      (calculate-next-state-barnes-hut state time-step)
+      (calculate-next-state-iterative  state time-step)))
 
 (defun simulate (stop-time time-step use-barnes-hut?)
   "The main simulation function"
