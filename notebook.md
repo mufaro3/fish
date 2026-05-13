@@ -74,3 +74,7 @@ the three-dimensional Barnes-Hut algorithm applied to fish would work as follows
 3. We recursively calculate the center of mass for each cell (both leaves and greater nodes).
 4. For each fish in the tree, traverse the tree to compute the force on the fish through deciding whether or not to use the center of mass or individual points based on how far the fish yielding a contribution to the force are.
 5. Use these forces to calculate dynamic change and evolve the state numerically, then repeat from step 1 for the next time-step.
+
+There is also this paper for generating Octrees:
+
+[Cornerstone: Octree Construction Algorithms for Scalable Particle Simulations](https://arxiv.org/abs/2307.06345)
